@@ -19,13 +19,8 @@ public class PokerPlayer
 		status = true;
 	}
 	
-	public String getCards() {
-		String str = "";
-		for (int i = 0; i < 2; i++)
-		{
-			str = str + cards[i].getNumber() + cards[i].getSymbol() + " \n";
-		}
-		return str;
+	public Cards getCards(int i) {
+		return cards[i];
 	}
 
 	public void setCards(Cards c, int n) {

@@ -1,15 +1,26 @@
 package Bot.Bot;
 
+import java.io.File;
+
 public class Cards 
 {
 	private int number;
 	private String symbol;
 	private String color;
+	private File image;
 	
 	public Cards(int number, String symbol, String color) {
 		this.number = number;
 		this.symbol = symbol;
 		this.color = color;
+	}
+
+	public File getImage() {
+		return image;
+	}
+
+	public void setImage(File image) {
+		this.image = image;
 	}
 
 	public int getNumber() {

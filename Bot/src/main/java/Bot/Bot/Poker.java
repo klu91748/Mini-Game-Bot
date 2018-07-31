@@ -23,12 +23,10 @@ import java.util.*;
 import java.awt.*;
 
 public class Poker
-{
-    private JDA jda;
+{   
+    private List saveFile;  
+    private DM dm = new DM();
     
-    private List saveFile;
-    
-    DM dm = new DM();
     private PokerPlayer player[];
     private User user[];
     private Cards cards[];
@@ -41,47 +39,51 @@ public class Poker
     private Timer timer = new Timer(1000, new TimerListener());
     private int counter = 0;
     private int playerCounter = 0;
-    private boolean wasRaised = false;
     private int currentRaise = 0;
+    private int playerTurn = 0;
+    private boolean wasRaised = false;
     private boolean gameFinished;
     
-    public Poker(JDA j)
+    private String winner = "";
+    
+    public Poker()
     {
     	house = new House();
     	pot = new Pot();
         rng = new Random();
         cards = new Cards[52];
         saveFile = new List();
-        jda = j;
         player = new PokerPlayer[6];
         user = new User[6];
         gameFinished = false;
     }
     
     public void init()
-    {  	
+    { 
         loadPlayers();
         loadCards();
         shuffleDeck();
-        play();      
+        play();
     }
     
     private void play()
     {
-        house.add(deal());
-        house.add(deal());
-        house.add(deal());
-        
-        channel.sendMessage(house.printCards()).queue();
+    	house.add(deal());
+    	house.add(deal());
+    	house.add(deal());
+    	showHouseCards();   
         
         for (int i = 0; i < counter; i++)
         {
+        	int buyCost = 1;
         	if (player[i].canBuyIn())
         	{
                 player[i].setCards(deal(), 0);
-                player[i].setCards(deal(), 1);
-                pot.add(player[i].subBalance(1));
-                dm.sendDm(player[i].getCards(), i);	
+                player[i].setCards(deal(), 1);       
+                dm.sendDm(player[i].getCards(0).getImage(), i);
+                dm.sendDm(player[i].getCards(1).getImage(), i);
+                pot.add(player[i].subBalance(buyCost));
+                saveFile.subPlayerBalance(player[i].getID(), buyCost);
         	}
         	else
         	{
@@ -100,12 +102,14 @@ public class Poker
     {	
     	if (player[playerCounter].getID().equals(u.getId()))
     	{
-    		if (str.equalsIgnoreCase("!poker raise "+num))
+    		if (str.equalsIgnoreCase("!poker raise "+num) && num > 0)
     		{
-    			if (player[playerCounter].getBalance() > 0)
+    			if (player[playerCounter].getBalance() >= num)
     			{
         			pot.add(player[playerCounter].subBalance(num));
         			currentRaise = num;
+        			saveFile.subPlayerBalance(player[playerCounter].getID(), num);
+        			playerTurn = playerCounter;
         			wasRaised = true;	
     			}
     			else
@@ -114,15 +118,16 @@ public class Poker
     				return;
     			}
     		}
-    		if (str.equalsIgnoreCase("!poker check") && !wasRaised)
+    		else if (str.equalsIgnoreCase("!poker check") && !wasRaised)
     		{
     			
     		}
-    		if (str.equalsIgnoreCase("!poker call") && wasRaised)
+    		else if (str.equalsIgnoreCase("!poker call") && wasRaised)
     		{
     			if (player[playerCounter].getBalance() >= currentRaise)
     			{
     				pot.add(player[playerCounter].subBalance(currentRaise));
+    				saveFile.subPlayerBalance(player[playerCounter].getID(), currentRaise);
     			}
     			else
     			{
@@ -131,7 +136,7 @@ public class Poker
     				return;
     			}
     		}
-    		if (str.equalsIgnoreCase("!poker fold"))
+    		else if (str.equalsIgnoreCase("!poker fold"))
     		{
     			player[playerCounter].setStatus(false);
     		}
@@ -143,12 +148,12 @@ public class Poker
     		if (player[playerCounter] == null)
     		{
     			playerCounter = 0;
-    			if (house.isFull() && !str.equalsIgnoreCase("!poker fold"))
+    			if (house.isFull() && !str.equalsIgnoreCase("!poker fold") && playerCounter == playerTurn)	//end game
     			{
     				showCards();
     				return;
     			}  			
-    			else if (str.equalsIgnoreCase("!poker fold"))
+    			else if (str.equalsIgnoreCase("!poker fold"))	//everyone folds
     			{			
     				boolean flag = false;
     				for (int i = 0; i < playerCounter; i++)
@@ -163,10 +168,10 @@ public class Poker
     					return;
     				}	
     			}
-    			else
-    			{			
+    			else if (playerCounter == playerTurn)	//when raising
+    			{
         			house.add(deal());
-        			channel.sendMessage(house.printCards()).queue();	
+        			showHouseCards();	
     			}
     		}
     		if (player[playerCounter].getStatus())
@@ -177,6 +182,19 @@ public class Poker
     	}
     }
     
+    public String getWinner()
+    {
+    	return winner;
+    }
+    
+    private void showHouseCards()
+    {
+        for (int i = 0; i < house.getCardCount(); i++)
+        {
+        	 channel.sendFile(house.getCard(i).getImage()).queue();
+        }
+        System.out.println(house.printCards());
+    }
     public boolean gameDone()
     {
     	return gameFinished;
@@ -189,7 +207,8 @@ public class Poker
     private void showCards()
     {
     	gameFinished = true;
-    	channel.sendMessage(jda.getUserById(player[0].getID()).getName() + jda.getUserById(player[0].getID()).getDiscriminator()+" won "+pot.getBalance()).queue();
+    	winner = player[0].getID();
+    	saveFile.addPlayerBalance(winner, pot.getBalance());
     }
     private void shuffleDeck()
     {
@@ -206,7 +225,7 @@ public class Poker
     
     private void loadCards()
     {
-        int counter = 1;
+        int n = 1;
         String color = "";
         String symbol = "";
             
@@ -215,7 +234,7 @@ public class Poker
             if (i % 4 == 0) {
                 symbol = "diamond";
                 color = "Red";
-                counter++;
+                n++;
             }   
             else if (i % 4 == 1) {
                 symbol = "club";
@@ -229,11 +248,75 @@ public class Poker
                 symbol = "spade";
                 color = "black";
             }
-            cards[i] = new Cards(counter, symbol, color);          
+            cards[i] = new Cards(n, symbol, color);          
         }
+        cards[0].setImage(new File("2diamond.png"));
+        cards[1].setImage(new File("2club.png"));
+        cards[2].setImage(new File("2heart.png"));
+        cards[3].setImage(new File("2spade.png"));
+        
+        cards[4].setImage(new File("3diamond.png"));
+        cards[5].setImage(new File("3club.png"));
+        cards[6].setImage(new File("3heart.png"));
+        cards[7].setImage(new File("3spade.png"));
+        
+        cards[8].setImage(new File("4diamond.png"));
+        cards[9].setImage(new File("4club.png"));
+        cards[10].setImage(new File("4heart.png"));
+        cards[11].setImage(new File("4spade.png"));
+        
+        cards[12].setImage(new File("5diamond.png"));
+        cards[13].setImage(new File("5club.png"));
+        cards[14].setImage(new File("5heart.png"));
+        cards[15].setImage(new File("5spade.png"));
+        
+        cards[16].setImage(new File("6diamond.png"));
+        cards[17].setImage(new File("6club.png"));
+        cards[18].setImage(new File("6heart.png"));
+        cards[19].setImage(new File("6spade.png"));
+        
+        cards[20].setImage(new File("7diamond.png"));
+        cards[21].setImage(new File("7club.png"));
+        cards[22].setImage(new File("7heart.png"));
+        cards[23].setImage(new File("7spade.png"));
+        
+        cards[24].setImage(new File("8diamond.png"));
+        cards[25].setImage(new File("8club.png"));
+        cards[26].setImage(new File("8heart.png"));
+        cards[27].setImage(new File("8spade.png"));
+        
+        cards[28].setImage(new File("9diamond.png"));
+        cards[29].setImage(new File("9club.png"));
+        cards[30].setImage(new File("9heart.png"));
+        cards[31].setImage(new File("9spade.png"));
+        
+        cards[32].setImage(new File("10diamond.png"));
+        cards[33].setImage(new File("10club.png"));
+        cards[34].setImage(new File("10heart.png"));
+        cards[35].setImage(new File("10spade.png"));
+        
+        cards[36].setImage(new File("Jdiamond.png"));
+        cards[37].setImage(new File("Jclub.png"));
+        cards[38].setImage(new File("Jheart.png"));
+        cards[39].setImage(new File("Jspade.png"));
+        
+        cards[40].setImage(new File("Qdiamond.png"));
+        cards[41].setImage(new File("Qclub.png"));
+        cards[42].setImage(new File("Qheart.png"));
+        cards[43].setImage(new File("Qspade.png"));
+        
+        cards[44].setImage(new File("Kdiamond.png"));
+        cards[45].setImage(new File("Kclub.png"));
+        cards[46].setImage(new File("Kheart.png"));
+        cards[47].setImage(new File("Kspade.png"));
+        
+        cards[48].setImage(new File("Adiamond.png"));
+        cards[49].setImage(new File("Aclub.png"));
+        cards[50].setImage(new File("Aheart.png"));
+        cards[51].setImage(new File("Aspade.png"));
     }
     
-    private void savePlayers()
+    public void savePlayers()
     {
         try {
             FileOutputStream fos = new FileOutputStream(new File("./list.xml"));
@@ -274,9 +357,8 @@ public class Poker
             player[i] = new PokerPlayer(user[i]);
             dm.setUser(user[i], i);
             saveFile.add(player[i].getID());
-            player[i].setBalance(saveFile.getBalance(player[i].getID()));
+            player[i].setBalance(saveFile.getPlayerBalance(player[i].getID()));
         }
-        //System.out.println(jda.getUserById(id).getName() + jda.getUserById(id).getDiscriminator());   
     }
     
     public boolean isInRoom(User u)

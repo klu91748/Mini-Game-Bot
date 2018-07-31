@@ -24,8 +24,29 @@ public class List
 	public void setId(String[] id) {
 		this.id = id;
 	}
+	
+	public void subPlayerBalance(String str, int bal)
+	{
+		for (int i = 0; i < id.length; i++)
+		{
+			if (str.equals(id[i]))
+			{
+				balance[i] -= bal;
+			}
+		}
+	}
+	public void addPlayerBalance(String str, int bal)
+	{
+		for (int i = 0; i < id.length; i++)
+		{
+			if (str.equals(id[i]))
+			{
+				balance[i] += bal;
+			}
+		}
+	}
 
-	public int getBalance(String str) 
+	public int getPlayerBalance(String str) 
 	{
 		int bal = 0;
 		for (int i = 0; i < id.length; i++)
@@ -42,6 +63,10 @@ public class List
 		this.balance = balance;
 	}
 	
+	public int[] getBalance() {
+		return balance;
+	}
+
 	public void add(String user)
 	{
 		if (id == null)

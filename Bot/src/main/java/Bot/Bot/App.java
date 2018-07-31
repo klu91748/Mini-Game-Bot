@@ -11,6 +11,7 @@ import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 
 import net.dv8tion.jda.core.AccountType;
+import net.dv8tion.jda.core.EmbedBuilder;
 import net.dv8tion.jda.core.JDA;
 import net.dv8tion.jda.core.JDABuilder;
 import net.dv8tion.jda.core.audio.AudioSendHandler;
@@ -41,21 +42,18 @@ import java.awt.*;
 
 public class App extends ListenerAdapter
 {
-	static JDA jda = null;
+	static JDA jda;
 	
 	Random rng = new Random();
 	RPS rps = new RPS();
-	static Poker poker = new Poker(jda);
-	DM dm = new DM();
-	static boolean pokerStarted = false;
-	
+	Poker poker = new Poker();
+	boolean pokerStarted = false;
 	private AudioPlayerManager playerManager;
 	
     public static void main( String[] args ) throws Exception
     {
         jda = new JDABuilder(AccountType.BOT).setToken(Ref.token).buildBlocking();
         jda.addEventListener(new App());
-        
     }
     
     @Override
@@ -125,6 +123,8 @@ public class App extends ListenerAdapter
     @Override
     public void onGuildMessageReceived(GuildMessageReceivedEvent event)
     {	
+    	if (event.getAuthor().isBot())
+    		return;
     	String mess = event.getMessage().getContentRaw();
     	MessageChannel ch = event.getChannel();
     	User user = event.getAuthor();
@@ -150,12 +150,12 @@ public class App extends ListenerAdapter
     			{
     				ch.sendMessage(user.getAsMention()+", you are already in the room!").queue();
     			}
-    		}	
+    		}
     		else if (!pokerStarted && poker.getCounter() >= 6 && mess.equalsIgnoreCase("!poker join"))
     		{
     			ch.sendMessage("There is no more room!").queue();
     		}   		
-    		else if (poker.getCounter() > 6 || mess.equalsIgnoreCase("!poker start"))
+    		else if (poker.getCounter() > 0 && mess.equalsIgnoreCase("!poker start"))
     		{
     			if (!pokerStarted)
     			{
@@ -173,19 +173,19 @@ public class App extends ListenerAdapter
     		{
     			poker.turn(user, mess, num);
     			if (poker.gameDone())
-    				pokerReset();
+    				pokerReset(ch);
     		}
     		else if (pokerStarted && mess.equalsIgnoreCase("!poker check"))
     		{
     			poker.turn(user, mess);
     			if (poker.gameDone())
-    				pokerReset();
+    				pokerReset(ch);
     		}
     		else if (pokerStarted && mess.equalsIgnoreCase("!poker fold"))
     		{
     			poker.turn(user, mess);
     			if (poker.gameDone())
-    				pokerReset();
+    				pokerReset(ch);
     		}
     		
     		else if (!pokerStarted && mess.equalsIgnoreCase("!poker leave"))
@@ -195,36 +195,62 @@ public class App extends ListenerAdapter
     			else
     			{
     				poker.subCounter();
-    				event.getChannel().sendMessage(poker.getPlayer(poker.getCounter()).getAsMention()+". You have left the room!").queue();
+    				ch.sendMessage(poker.getPlayer(poker.getCounter()).getAsMention()+". You have left the room!").queue();
         			poker.setPlayer(null, poker.getCounter());
     			}
     			return;
     		}
-    		else if (mess.equalsIgnoreCase("!poker collect"))
+    		else if (mess.equalsIgnoreCase("!poker balance"))
     		{
-    			
+    			List saveFile = new List();
+    			try {
+    	            File file = new File("./list.xml");
+    	            if (!file.exists())
+    	            {
+    	                FileOutputStream fos = new FileOutputStream(new File("./list.xml"));
+    	                XMLEncoder encoder = new XMLEncoder(fos);
+    	                encoder.writeObject(new List());
+    	                encoder.close();
+    	                fos.close();
+    	                System.out.println("Creating list.xml file");
+    	            }
+    	            FileInputStream fis = new FileInputStream(file);
+    	            XMLDecoder decoder = new XMLDecoder(fis);
+    	            saveFile = (List)decoder.readObject();
+    	            decoder.close();
+    	            fis.close();
+    	        }
+    	        catch (IOException e){
+    	            e.printStackTrace();
+    	        }
+    			int bal = saveFile.getPlayerBalance(user.getId());
+    			ch.sendMessage(user.getAsMention()+"'s balance: "+bal).queue();
     		}
     		else
     		{
     			ch.sendMessage("Invalid Poker Command!").queue();
-    		}  		  		
+    		}		  		
     	}
     	else
     		return;
     	
     }
     
-    public static void pokerReset()
-    {
-    	poker = new Poker(jda);
+    public void pokerReset(MessageChannel c)
+    {   	
+    	c.sendMessage(jda.getUserById(poker.getWinner()).getName()+ " won!").queue();
+    	poker.savePlayers();
+    	poker = new Poker();
     	pokerStarted = false;
     }
 
-    public static boolean isInteger(String str) 
+    public boolean isInteger(String str) 
     {
     	char c = ' ';
     	if (str.length() > 12)
     	{
+    		if (str.charAt(12) != ' ')
+    			return false;
     		for (int i = 13; i < str.length(); i++)
     		{
     			c = str.charAt(i);
@@ -233,7 +259,7 @@ public class App extends ListenerAdapter
     		}
     		return true;
     	}
-    		return false;
+    	return false;
     }
     	
     

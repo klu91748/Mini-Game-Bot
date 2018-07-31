@@ -35,4 +35,9 @@ public class House
 	{
 		return lastIndex == 5;
 	}
+	
+	public int getCardCount()
+	{
+		return lastIndex;
+	}
 }
